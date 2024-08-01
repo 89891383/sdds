@@ -1,12 +1,9 @@
-import base64
-import datetime as dt
-import hashlib
-import hmac
 import json
 import requests
 from urllib.parse import urlparse, quote
 from flask import Flask, request, jsonify
 from os import path
+import datetime as dt
 
 app = Flask(__name__)
 
@@ -15,8 +12,6 @@ PLATFORM = "CDA"
 VIDEO_SEARCH_URL = "https://api.cda.pl/video/search"
 VIDEO_URL = "https://www.cda.pl/video/"
 BASE_URL = "https://www.cda.pl"
-LOGIN = "{{login}}"
-PASSWORD = "{{password}}"
 REQUEST_HEADERS = {
     'Accept': 'application/vnd.cda.public+json',
     'User-Agent': 'Mozilla/5.0'
@@ -71,28 +66,32 @@ def get_bearer_token(username, password):
     headers = REQUEST_HEADERS.copy()
     headers['Authorization'] = BASE_AUTH
 
-    res = requests.post(
-        f'https://api.cda.pl/oauth/token?grant_type=password&login={quote(username)}&password={password}',
-        headers=headers)
+    data = {
+        'grant_type': 'password',
+        'login': quote(username),
+        'password': password
+    }
 
-    data = res.json()
+    res = requests.post('https://api.cda.pl/oauth/token', headers=headers, data=data)
+
+    response_data = res.json()
 
     # Debug log the response data to understand its structure
-    print(f"Response data: {data}")
+    print(f"Response data: {response_data}")
 
-    if 'expires_in' not in data:
+    if 'expires_in' not in response_data:
         raise ValueError('Missing "expires_in" in response')
 
     now = dt.datetime.now()
-    expires_in = dt.timedelta(seconds=data['expires_in'])
+    expires_in = dt.timedelta(seconds=response_data['expires_in'])
     expiration_time = now + expires_in
 
-    data['expiration_date'] = int(expiration_time.timestamp())
-    file_data[username] = data
+    response_data['expiration_date'] = int(expiration_time.timestamp())
+    file_data[username] = response_data
 
     with open(cache_file, "w") as outfile:
         json.dump(file_data, outfile)
-    return data
+    return response_data
 
 # Function to get video URLs for all qualities
 def get_video_urls_all_qualities(video_url, bearer_token):
